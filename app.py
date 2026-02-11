@@ -1,14 +1,14 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-# 1. ページの設定（タブ名やレイアウト）
+# 1. ページの設定
 st.set_page_config(
     page_title="AI Code Risk Guard",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# 2. 余白を消して画面いっぱいに表示する設定
+# 2. 余白を消して画面いっぱいに表示
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -19,8 +19,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Code Checker (v13) のHTMLコードをそのまま移植
-# 添付の code_Checker.html の内容を反映
+# 3. HTMLコード (HTML版の全リスクカテゴリ・チェック機能を完全移植)
 html_code = r'''
 <!DOCTYPE html>
 <html lang="ja">
@@ -32,83 +31,72 @@ html_code = r'''
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .drop-zone { border: 2px dashed #cbd5e1; transition: all 0.3s ease; border-radius: 1rem; }
-        .drop-zone.dragover { border-color: #3b82f6; background: #eff6ff; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; overflow: hidden; height: 100vh; }
         .editor-container { position: relative; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fff; }
         #codeEditor { 
-            width: 100%; height: 500px; padding: 1.25rem; font-family: 'Monaco', 'Consolas', monospace; 
+            width: 100%; height: calc(100vh - 350px); padding: 1.25rem; font-family: 'Monaco', 'Consolas', monospace; 
             font-size: 13px; line-height: 1.6; outline: none; white-space: pre; overflow: auto;
         }
-        .hl-risk { background: rgba(239, 68, 68, 0.15); border-bottom: 2px solid #ef4444; font-weight: bold; }
-        .risk-item { animation: slideIn 0.3s ease-out; }
-        @keyframes slideIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
+        .hl-risk { background: rgba(239, 68, 68, 0.2); border-bottom: 2px solid #ef4444; font-weight: bold; }
+        .status-badge { transition: all 0.3s ease; }
+        /* スクロールバー装飾 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-4">
 
-    <div class="max-w-7xl mx-auto">
-        <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+    <div class="max-w-[1600px] mx-auto h-full flex flex-col">
+        <div class="flex items-center justify-between mb-4 flex-shrink-0">
             <div>
-                <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
-                    <i class="fas fa-shield-virus text-blue-600"></i>
-                    AI Code Risk Guard <span class="text-sm font-normal bg-slate-200 px-2 py-1 rounded text-slate-600">v13</span>
+                <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fas fa-shield-halved text-blue-600"></i>
+                    AI Code Risk Guard <span class="text-xs font-normal bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">v13 PRO</span>
                 </h1>
-                <p class="text-slate-500 mt-1">AIにコードを渡す前に、機密情報や破壊的コマンドを自動検知して無効化します。</p>
             </div>
-            <div class="flex items-center gap-3">
-                <div id="riskCountBadge" class="px-4 py-2 rounded-full bg-slate-800 text-white font-bold text-sm">READY</div>
-            </div>
+            <div id="riskCountBadge" class="px-4 py-1.5 rounded-full bg-slate-800 text-white font-bold text-xs">STANDBY</div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div class="lg:col-span-7 flex flex-col gap-4">
-                <div id="dropZone" class="drop-zone p-8 text-center bg-white cursor-pointer hover:bg-slate-50">
-                    <i class="fas fa-cloud-upload-alt text-4xl text-slate-300 mb-3"></i>
-                    <p class="text-slate-600">ファイルをドラッグ＆ドロップ、または <span class="text-blue-600 font-semibold">ブラウズ</span></p>
-                    <p class="text-xs text-slate-400 mt-1">.py, .js, .html, .txt などに対応</p>
+        <div class="grid grid-cols-12 gap-6 flex-1 overflow-hidden">
+            <div class="col-span-7 flex flex-col gap-4 h-full">
+                <div class="editor-container shadow-sm flex-1 flex flex-col">
+                    <div class="bg-slate-50 border-b px-4 py-2 flex justify-between items-center text-[10px] font-bold text-slate-400 tracking-widest">
+                        <span>SOURCE CODE</span>
+                        <div class="flex gap-4">
+                             <button onclick="document.getElementById('fileInput').click()" class="hover:text-blue-600"><i class="fas fa-file-upload"></i> 読み込み</button>
+                             <button onclick="clearEditor()" class="hover:text-red-500"><i class="fas fa-trash-alt"></i> クリア</button>
+                        </div>
+                    </div>
+                    <div id="codeEditor" contenteditable="true" spellcheck="false"></div>
                     <input type="file" id="fileInput" class="hidden">
                 </div>
-
-                <div class="editor-container shadow-sm">
-                    <div class="bg-slate-50 border-bottom px-4 py-2 flex justify-between items-center text-xs font-semibold text-slate-500">
-                        <span>SOURCE CODE EDITOR</span>
-                        <button onclick="clearEditor()" class="text-slate-400 hover:text-red-500 transition-colors">
-                            <i class="fas fa-trash-alt"></i> クリア
-                        </button>
-                    </div>
-                    <div id="codeEditor" contenteditable="true" spellcheck="false" placeholder="ここにコードを貼り付けてください..."></div>
-                </div>
-
-                <div class="flex gap-3">
-                    <button onclick="runAnalysis()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2">
-                        <i class="fas fa-search text-lg"></i> 診断実行
-                    </button>
-                </div>
+                
+                <button onclick="runAnalysis()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 flex-shrink-0">
+                    <i class="fas fa-sync-alt"></i> リスクスキャンを実行
+                </button>
             </div>
 
-            <div class="lg:col-span-5 flex flex-col gap-4">
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
-                    <div class="bg-slate-900 px-6 py-4 flex justify-between items-center">
-                        <h2 class="text-white font-bold flex items-center gap-2">
-                            <i class="fas fa-clipboard-list text-blue-400"></i>
-                            検出されたリスク
-                        </h2>
+            <div class="col-span-5 flex flex-col gap-4 h-full overflow-hidden">
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex-shrink-0">
+                    <h3 class="text-xs font-bold text-slate-500 mb-3 tracking-tighter uppercase">Risk Category Checklist</h3>
+                    <div id="checklist" class="grid grid-cols-2 gap-2 text-[11px]">
+                        </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-xl shadow-inner flex-1 flex flex-col overflow-hidden">
+                    <div class="px-4 py-2 border-b border-slate-800 flex justify-between items-center">
+                        <span class="text-[10px] text-slate-500 font-bold">DETECTION LOGS</span>
+                        <span id="logCount" class="text-blue-400 text-[10px]">0 issues</span>
+                    </div>
+                    <div id="resultsDiv" class="p-4 overflow-y-auto flex-1 space-y-3">
+                        <p class="text-slate-600 text-xs italic text-center mt-10">コードを入力してスキャンを開始してください</p>
                     </div>
                     
-                    <div id="resultsDiv" class="p-6 overflow-y-auto flex-1 max-h-[600px]">
-                        <p class="text-center text-slate-400 italic py-10">診断を開始してください。</p>
-                    </div>
-
-                    <div id="actionPanel" class="p-4 bg-slate-50 border-t border-slate-200 hidden">
-                        <div class="flex flex-col gap-2">
-                            <button id="copyPromptBtn" onclick="copyAIPrompt()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all">
-                                <i class="fas fa-robot"></i> AI指示用プロンプトをコピー
-                            </button>
-                            <button id="copySanitizedBtn" onclick="copySanitizedCode()" class="w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all text-sm">
-                                <i class="fas fa-copy"></i> 安全に加工してコードをコピー
-                            </button>
-                        </div>
+                    <div id="actionPanel" class="p-3 bg-slate-800 hidden">
+                         <button onclick="copyAIPrompt()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-3 rounded-lg flex items-center justify-center gap-2">
+                            <i class="fas fa-robot"></i> AI指示用プロンプトを生成
+                        </button>
                     </div>
                 </div>
             </div>
@@ -118,92 +106,110 @@ html_code = r'''
     <script>
         const editor = document.getElementById('codeEditor');
         const resultsDiv = document.getElementById('resultsDiv');
-        const riskCountBadge = document.getElementById('riskCountBadge');
-        const actionPanel = document.getElementById('actionPanel');
-        const aiBtn = document.getElementById('copyPromptBtn');
-        const copyBtn = document.getElementById('copySanitizedBtn');
-
-        // リスク定義
-        const RULES = [
-            { id: 'env', name: '機密情報 (API KEY/ENV)', regex: /(AIza[0-9A-Za-z-_]{35}|sk-[a-zA-Z0-9]{48}|(?<=PASSWORD\s*[:=]\s*['"])[^'"]+|(?<=SECRET\s*[:=]\s*['"])[^'"]+)/gi, comment: '/* [CONFIDENTIAL REMOVED] ', level: 'CRITICAL', advice: 'APIキーやパスワードが露出しています。環境変数を使用してください。' },
-            { id: 'destruct', name: '破壊的コマンド', regex: /(rm\s+-rf\s+\/|DROP\s+TABLE|os\.remove|shutil\.rmtree)/gi, comment: '/* [DESTRUCTIVE COMMAND DISABLED] ', level: 'CRITICAL', advice: 'システムを破壊する恐れのあるコマンドです。実行前に再確認してください。' },
-            { id: 'path', name: '絶対パスの露出', regex: /(\/[a-z0-9_-]+\/[a-z0-9_-]+\/[a-z0-9_-]+|C:\\[\w\\]+)/gi, comment: '/* [PATH ANONYMIZED] ', level: 'WARNING', advice: 'ローカルのディレクトリ構造がわかると攻撃のヒントになります。相対パスを推奨。' },
-            { id: 'ip', name: 'IPアドレス', regex: /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, comment: '/* [IP ANONYMIZED] ', level: 'WARNING', advice: 'サーバーの場所を特定されるリスクがあります。' }
+        const checklistDiv = document.getElementById('checklist');
+        
+        // HTML版の全リスクカテゴリ定義
+        const CATEGORIES = [
+            { id: 'env', name: 'APIキー/機密情報', icon: 'fa-key', regex: /(AIza[0-9A-Za-z-_]{35}|sk-[a-zA-Z0-9]{48}|password\s*[:=]|secret\s*[:=])/gi, msg: 'APIキーやパスワードのハードコーディング', advice: '環境変数(dotenv)を使用してください。' },
+            { id: 'comm', name: '外部通信/漏洩', icon: 'fa-network-wired', regex: /(requests\.|fetch\(|axios\.|socket|http:\/\/)/gi, msg: '外部サーバーへのデータ送信', advice: '送信先URLが意図したものか確認してください。' },
+            { id: 'billing', name: '課金発生リスク', icon: 'fa-credit-card', regex: /(gpt-4|claude-3|billing|payment|subscription)/gi, msg: '高額なAPI利用料の発生', advice: 'ループ内での呼び出しやリトライ設定に注意。' },
+            { id: 'rights', name: '権利侵害', icon: 'fa-copyright', regex: /(copyright|license|pirated|unauthorized)/gi, msg: '著作権・ライセンス違反の懸念', advice: 'OSSライセンスの表記義務を確認してください。' },
+            { id: 'config', name: '環境設定変更', icon: 'fa-sliders', regex: /(sys\.path|os\.environ|chmod|chown)/gi, msg: 'システム設定の意図しない変更', advice: '実行環境の権限設定に影響します。' },
+            { id: 'loop', name: '無限ループ', icon: 'fa-infinity', regex: /(while\s+True|for\s+.*in\s+repeat)/gi, msg: 'リソースの枯渇・ハングアップ', advice: '必ず脱出条件(break)を設定してください。' },
+            { id: 'delete', name: 'ファイル消去', icon: 'fa-eraser', regex: /(rm\s+-rf|os\.remove|shutil\.rmtree|DROP\s+TABLE)/gi, msg: 'データの永久的な削除', advice: '削除前に確認ダイアログやバックアップが必要です。' },
+            { id: 'path', name: '絶対パス/環境露出', icon: 'fa-folder-open', regex: /(\/[a-z0-9_-]+\/[a-z0-9_-]+|C:\\[\w\\]+)/gi, msg: 'サーバー構造の露出', advice: '相対パスを使用してください。' }
         ];
 
-        let lastPureCode = "";
+        // 初期状態でチェックリストを生成
+        function initChecklist() {
+            checklistDiv.innerHTML = CATEGORIES.map(c => `
+                <div id="check-${c.id}" class="flex items-center gap-2 p-2 rounded bg-slate-50 text-slate-400 border border-transparent">
+                    <i class="fas ${c.icon} w-4 text-center"></i>
+                    <span class="flex-1 font-medium">${c.name}</span>
+                    <i class="fas fa-minus-circle opacity-30"></i>
+                </div>
+            `).join('');
+        }
+        initChecklist();
 
         function runAnalysis() {
             const code = editor.innerText;
-            lastPureCode = code;
-            let highlightedCode = escapeHtml(code);
+            if(!code.trim()) return;
+            
             let findings = [];
+            let highlightedCode = escapeHtml(code);
 
-            RULES.forEach(rule => {
-                const matches = code.match(rule.regex);
+            // スキャンのリセット
+            initChecklist();
+
+            CATEGORIES.forEach(cat => {
+                const matches = code.match(cat.regex);
+                const badge = document.getElementById(`check-${cat.id}`);
+                
                 if (matches) {
+                    badge.classList.remove('bg-slate-50', 'text-slate-400');
+                    badge.classList.add('bg-red-50', 'text-red-600', 'border-red-100');
+                    badge.querySelector('.fa-minus-circle').className = 'fas fa-exclamation-triangle';
+                    
                     matches.forEach(m => {
-                        findings.push({ ...rule, match: m });
+                        findings.push({ ...cat, match: m });
                         highlightedCode = highlightedCode.split(m).join(`<span class="hl-risk">${m}</span>`);
                     });
+                } else {
+                    badge.classList.remove('text-slate-400');
+                    badge.classList.add('bg-emerald-50', 'text-emerald-600', 'border-emerald-100');
+                    badge.querySelector('.fa-minus-circle').className = 'fas fa-check-circle';
                 }
             });
 
             editor.innerHTML = highlightedCode;
-            renderResults(findings);
+            renderLogs(findings);
         }
 
-        function renderResults(findings) {
+        function renderLogs(findings) {
+            const badge = document.getElementById('riskCountBadge');
+            const logCount = document.getElementById('logCount');
+            const actionPanel = document.getElementById('actionPanel');
+
             if (findings.length === 0) {
-                resultsDiv.innerHTML = '<div class="text-center py-10 text-emerald-500 font-bold"><i class="fas fa-check-circle text-4xl mb-2"></i><p>リスクは見つかりませんでした！</p></div>';
-                riskCountBadge.textContent = 'SECURE';
-                riskCountBadge.className = 'px-4 py-2 rounded-full bg-emerald-500 text-white font-bold text-sm';
+                resultsDiv.innerHTML = '<div class="text-center py-10"><i class="fas fa-shield-check text-emerald-500 text-3xl mb-2"></i><p class="text-emerald-400 text-xs">リスクは見つかりませんでした</p></div>';
+                badge.className = 'px-4 py-1.5 rounded-full bg-emerald-600 text-white font-bold text-xs';
+                badge.textContent = 'SECURE';
+                logCount.textContent = '0 issues';
                 actionPanel.classList.add('hidden');
                 return;
             }
 
-            riskCountBadge.textContent = `${findings.length} RISKS FOUND`;
-            riskCountBadge.className = 'px-4 py-2 rounded-full bg-red-600 text-white font-bold text-sm';
+            badge.className = 'px-4 py-1.5 rounded-full bg-red-600 text-white font-bold text-xs';
+            badge.textContent = `${findings.length} RISKS`;
+            logCount.textContent = `${findings.length} issues detected`;
             actionPanel.classList.remove('hidden');
 
             resultsDiv.innerHTML = findings.map(f => `
-                <div class="risk-item mb-4 p-4 rounded-xl border-l-4 ${f.level === 'CRITICAL' ? 'border-red-500 bg-red-50' : 'border-amber-500 bg-amber-50'}">
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="text-xs font-black uppercase tracking-wider ${f.level === 'CRITICAL' ? 'text-red-600' : 'text-amber-600'}">${f.level}</span>
-                        <span class="text-[10px] bg-white px-2 py-1 rounded border border-slate-200 text-slate-400 font-mono">${f.id}</span>
+                <div class="bg-slate-800 p-3 rounded-lg border-l-2 border-red-500">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-[9px] font-bold text-red-400 uppercase tracking-tighter">${f.name}</span>
                     </div>
-                    <h3 class="font-bold text-slate-800 text-sm mb-1">${f.name}</h3>
-                    <code class="block bg-white p-2 rounded border border-slate-200 text-xs text-red-500 mb-2 truncate">${f.match}</code>
-                    <p class="text-xs text-slate-600 leading-relaxed"><i class="fas fa-lightbulb text-amber-500"></i> ${f.advice}</p>
+                    <div class="text-slate-200 text-xs font-bold mb-1">${f.msg}</div>
+                    <code class="block text-[10px] text-red-300 bg-red-900/30 p-1 rounded truncate mb-2">${f.match}</code>
+                    <p class="text-[10px] text-slate-400 leading-tight"><i class="fas fa-info-circle"></i> ${f.advice}</p>
                 </div>
             `).join('');
         }
 
         function copyAIPrompt() {
-            const prompt = `以下のソースコードの「セキュリティ上の問題点」を修正し、「より安全で効率的なコード」に書き換えてください。
-【修正の要件】
-1. APIキーなどの機密情報は、コードに直書きせず、冒頭の設定エリアに切り出してください。
-2. 無限ループやファイル消去などの破壊的な操作は、安全な代替処理に変更してください。
-3. 修正した箇所と、その理由を初心者にもわかりやすく解説してください。
-
-【対象のソースコード】
-${lastPureCode}`;
-
-            navigator.clipboard.writeText(prompt).then(() => {
-                const icon = aiBtn.innerHTML;
-                aiBtn.innerHTML = '<i class="fas fa-check"></i> コピーしました！';
-                setTimeout(() => { aiBtn.innerHTML = icon; }, 3000);
-            });
+            const prompt = `以下のソースコードをレビューし、セキュリティリスクを排除した修正版を作成してください。特にAPIキーの秘匿化、例外処理の追加、リソース消費の最適化を重点的に行ってください。\n\n【対象コード】\n${editor.innerText}`;
+            navigator.clipboard.writeText(prompt);
+            alert("AI指示用プロンプトをコピーしました。ChatGPTやClaudeに貼り付けてください。");
         }
 
-        function copySanitizedCode() {
-            let sanitized = lastPureCode;
-            RULES.forEach(rule => { sanitized = sanitized.replace(rule.regex, (match) => `${rule.comment}${match} */`); });
-            navigator.clipboard.writeText(sanitized).then(() => {
-                const icon = copyBtn.innerHTML;
-                copyBtn.innerHTML = '<i class="fas fa-check"></i> 安全にコピーしました';
-                setTimeout(() => { copyBtn.innerHTML = icon; }, 2000);
-            });
+        function clearEditor() {
+            editor.innerText = '';
+            initChecklist();
+            resultsDiv.innerHTML = '<p class="text-slate-600 text-xs italic text-center mt-10">コードを入力してスキャンを開始してください</p>';
+            document.getElementById('riskCountBadge').textContent = 'STANDBY';
+            document.getElementById('riskCountBadge').className = 'px-4 py-1.5 rounded-full bg-slate-800 text-white font-bold text-xs';
+            document.getElementById('actionPanel').classList.add('hidden');
         }
 
         function escapeHtml(text) {
@@ -212,33 +218,16 @@ ${lastPureCode}`;
             return div.innerHTML;
         }
 
-        function clearEditor() {
-            editor.innerText = '';
-            resultsDiv.innerHTML = '<p class="text-center text-slate-400 italic py-10">診断を開始してください。</p>';
-            riskCountBadge.textContent = 'READY';
-            riskCountBadge.className = 'px-4 py-2 rounded-full bg-slate-800 text-white font-bold text-sm';
-            actionPanel.classList.add('hidden');
-        }
-
-        // ドラッグ＆ドロップ
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        dropZone.onclick = () => fileInput.click();
-        fileInput.onchange = (e) => handleFile(e.target.files[0]);
-        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
-        dropZone.ondragleave = () => dropZone.classList.remove('dragover');
-        dropZone.ondrop = (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); };
-
-        function handleFile(file) {
-            if (!file) return;
+        document.getElementById('fileInput').onchange = (e) => {
+            const file = e.target.files[0];
             const reader = new FileReader();
             reader.onload = (e) => { editor.innerText = e.target.result; runAnalysis(); };
             reader.readAsText(file);
-        }
+        };
     </script>
 </body>
 </html>
 '''
 
-# 4. コンポーネントを表示
+# 4. 表示
 components.html(html_code)
